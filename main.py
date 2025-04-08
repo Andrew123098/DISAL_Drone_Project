@@ -1,5 +1,5 @@
-from src.visualize import Visualize
-from src.astar import AStar
+from visualize import Visualize
+from astar import AStar
 
 def main():
     # Compute the occupancy map
@@ -7,7 +7,7 @@ def main():
     map = visualizer.occupancy_map()
 
     # 4-directional movement
-    astar_4d = AStar(map, '4d')
+    astar_4d = AStar(map, )
     path_4d = astar_4d.search()
     
     # 8-directional movement
