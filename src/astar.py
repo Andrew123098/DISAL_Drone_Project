@@ -1,4 +1,3 @@
-import asyncio
 # import drone_pkg.astar.visualize as viz
 import visualize as viz
 import numpy as np
@@ -7,7 +6,6 @@ import heapq
 from typing import List, Tuple, Optional, Dict
 from scipy.interpolate import make_interp_spline
 from scipy.optimize import minimize
-# from mavsdk import System
 
 class AStar:
     def __init__(self, grid: np.ndarray, grid_res: float, start_pos: Tuple[float, float], goal_pos: Tuple[float, float], move_type: str = '8d'):

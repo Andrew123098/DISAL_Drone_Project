@@ -274,7 +274,7 @@ class Visualize:
 
             # Scatter plot with color-coded dots
             plt.scatter(spline_pts[1:, 0], spline_pts[1:, 1], 
-                        c=colors, s=10, cmap='viridis_r')
+                        c=colors, s=20, cmap='viridis_r')
 
             # Set the axis background to black
             plt.gca().set_facecolor('black')
@@ -316,7 +316,7 @@ class Visualize:
         thickness = 2  # Increase this value to make the text bolder
 
         if astar_path:
-            cv2.putText(img, "Raw Path", (10, 40), font, font_scale, (255, 255, 0), thickness)
+            cv2.putText(img, "Raw Path", (10, 40), font, font_scale, (255, 0, 0), thickness)
         if spline_path:
             cv2.putText(img, "Spline (dots)", (10, 80), font, font_scale, (0, 255, 255), thickness)
         if gradient_path:
