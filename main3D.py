@@ -1,5 +1,5 @@
-from src.visualize3D import Visualize3D
-from src.astar3D import AStar3D
+from epfl_code.utils.visualize3D import Visualize3D
+from epfl_code.utils.astar3D import AStar3D
 
 
 def main():

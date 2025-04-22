@@ -1,0 +1,166 @@
+import numpy as np
+from typing import List, Dict, Tuple
+from scipy.spatial.transform import Rotation
+import plotly.graph_objects as go
+
+
+class OccupancyMap:
+    def __init__(self, world_size: Tuple[float, float, float] = (10, 10, 5), resolution: float = 0.05):
+        """
+        Initialize the occupancy map generator.
+
+        Parameters:
+        - world_size: The physical dimensions of the space in meters (X, Y, Z).
+        - resolution: Size of each voxel cell in meters.
+        """
+        self.world_size = world_size
+        self.resolution = resolution
+        self.grid_dims = (np.array(world_size) / resolution).astype(int)
+        self.occupancy_grid = np.zeros(self.grid_dims, dtype=np.int8)
+
+    def create(self, objects: List[Dict], control_points: List[tuple]) -> np.ndarray:
+        """
+        Populate the occupancy grid with labeled voxels based on objects and control points.
+
+        Parameters:
+        - objects: List of object dictionaries containing translation, rotation, scale, and type.
+        - control_points: List of (x,y,z) tuples representing path control points.
+
+        Returns:
+        - occupancy_grid: A 3D numpy array representing the labeled space with:
+            - 0 = free space
+            - -1 = gates
+            - -2 = control points
+            - -4 = flight area
+            - 1 = obstacles (beams/takeoff pads)
+        """
+        print(f"Creating {self.world_size}m world grid: {self.grid_dims} cells")
+
+        # Mark central flight area (-4)
+        flight_cells = int(8 / self.resolution)
+        start = int(1 / self.resolution)  # 2m offset (1m in from each wall)
+        self.occupancy_grid[start:start + flight_cells,
+        start:start + flight_cells,
+        0] = -4
+
+        # Process all objects
+        for obj in objects:
+            pos = np.array(obj['translation'])
+            size = np.array(obj['scale'])
+            rot = Rotation.from_rotvec(obj['rotation'][3] * np.array(obj['rotation'][:3]))
+
+            half_size = size / 2
+
+            # Create voxel ranges
+            x_range = np.arange(
+                max(0, pos[0] - half_size[0]),
+                min(self.world_size[0], pos[0] + half_size[0]),
+                self.resolution
+            )
+            y_range = np.arange(
+                max(0, pos[1] - half_size[1]),
+                min(self.world_size[1], pos[1] + half_size[1]),
+                self.resolution
+            )
+            z_range = np.arange(
+                max(0, pos[2] - half_size[2]),
+                min(self.world_size[2], pos[2] + half_size[2]),
+                self.resolution
+            )
+
+            # Grid and transform points
+            xx, yy, zz = np.meshgrid(x_range, y_range, z_range, indexing='ij')
+            points = np.column_stack((xx.ravel(), yy.ravel(), zz.ravel()))
+            rotated_points = rot.apply(points - pos) + pos
+            grid_coords = (rotated_points / self.resolution).astype(int)
+
+            valid = np.all((grid_coords >= 0) & (grid_coords < self.grid_dims), axis=1)
+            unique_coords = np.unique(grid_coords[valid], axis=0)
+
+            # Assign voxel values based on object type
+            if obj['type'] == 'gate':
+                value = -1
+            elif obj['type'] in ('takeoff_pad', 'beam'):
+                value = 1
+            else:
+                value = 0
+
+            if unique_coords.size > 0:
+                self.occupancy_grid[
+                    unique_coords[:, 0],
+                    unique_coords[:, 1],
+                    unique_coords[:, 2]
+                ] = value
+
+        # Mark control points (-2)
+        for point in control_points:
+            x, y, z = point
+            # Convert world coordinates to grid indices
+            xi = int(x / self.resolution)
+            yi = int(y / self.resolution)
+            zi = int(z / self.resolution)
+
+            # Only mark if within bounds
+            if (0 <= xi < self.grid_dims[0] and
+                    0 <= yi < self.grid_dims[1] and
+                    0 <= zi < self.grid_dims[2]):
+                self.occupancy_grid[xi, yi, zi] = -2
+            else:
+                print(f"Warning: Control point {point} outside grid bounds")
+
+        return self.occupancy_grid
+
+    def plot(self):
+        """
+        Visualize the occupancy grid using Plotly in 3D.
+        """
+        fig = go.Figure()
+        resolution = self.resolution
+        grid = self.occupancy_grid
+
+        def add_trace(condition_value, color, name, size=2, opacity=0.6, stride=1):
+            coords = np.where(grid == condition_value)
+            if len(coords[0]) > 0:
+                fig.add_trace(go.Scatter3d(
+                    x=coords[0][::stride] * resolution,
+                    y=coords[1][::stride] * resolution,
+                    z=coords[2][::stride] * resolution,
+                    mode='markers',
+                    marker=dict(size=size, color=color, opacity=opacity),
+                    name=name
+                ))
+
+        # Add object types
+        add_trace(-4, 'gray', 'Flight Area (-4)', size=1, opacity=0.2)
+        add_trace(-1, 'red', 'Gates (-1)', size=3, opacity=0.02, stride=max(1, int(0.05 / resolution)))
+        add_trace(1, 'blue', 'Takeoff Pad / Beams (1)', size=1, opacity=0.7)
+        add_trace(-2, 'green', 'Control Points', size=3, opacity=0.7)
+
+        # Add boundary outline
+        boundary_x = [1, 9, 9, 1, 1]
+        boundary_y = [1, 1, 9, 9, 1]
+        boundary_z = [0] * 5
+        fig.add_trace(go.Scatter3d(
+            x=boundary_x,
+            y=boundary_y,
+            z=boundary_z,
+            mode='lines',
+            line=dict(color='black', width=2),
+            name='Flight Boundary'
+        ))
+
+        fig.update_layout(
+            scene=dict(
+                xaxis=dict(range=[0, 10], title='X (m)'),
+                yaxis=dict(range=[0, 10], title='Y (m)'),
+                zaxis=dict(range=[0, 5], title='Z (m)'),
+                aspectmode='manual',
+                aspectratio=dict(x=2, y=2, z=1)
+            ),
+            width=900,
+            height=700,
+            title="3D Occupancy Grid Map",
+            showlegend=True,
+        )
+
+        fig.show()
