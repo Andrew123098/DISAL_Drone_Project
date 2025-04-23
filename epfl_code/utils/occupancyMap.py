@@ -17,6 +17,7 @@ class OccupancyMap:
         self.resolution = resolution
         self.grid_dims = (np.array(world_size) / resolution).astype(int)
         self.occupancy_grid = np.zeros(self.grid_dims, dtype=np.int8)
+        self.control_points = []
 
     def create(self, objects: List[Dict], control_points: List[tuple]) -> np.ndarray:
         """
@@ -28,11 +29,12 @@ class OccupancyMap:
 
         Returns:
         - occupancy_grid: A 3D numpy array representing the labeled space with:
+            - 1 = obstacles (beams/takeoff pads)
             - 0 = free space
             - -1 = gates
             - -2 = control points
+            - -3 = path waypoints
             - -4 = flight area
-            - 1 = obstacles (beams/takeoff pads)
         """
         print(f"Creating {self.world_size}m world grid: {self.grid_dims} cells")
 
@@ -93,6 +95,7 @@ class OccupancyMap:
                 ] = value
 
         # Mark control points (-2)
+        self.control_points = control_points
         for point in control_points:
             x, y, z = point
             # Convert world coordinates to grid indices
@@ -110,16 +113,20 @@ class OccupancyMap:
 
         return self.occupancy_grid
 
-    def plot(self):
+    def plot(self, grid = None):
         """
         Visualize the occupancy grid using Plotly in 3D.
         """
         fig = go.Figure()
         resolution = self.resolution
-        grid = self.occupancy_grid
+
+        if grid is None:
+            grid = self.occupancy_grid
+
 
         def add_trace(condition_value, color, name, size=2, opacity=0.6, stride=1):
             coords = np.where(grid == condition_value)
+
             if len(coords[0]) > 0:
                 fig.add_trace(go.Scatter3d(
                     x=coords[0][::stride] * resolution,
@@ -134,7 +141,9 @@ class OccupancyMap:
         add_trace(-4, 'gray', 'Flight Area (-4)', size=1, opacity=0.2)
         add_trace(-1, 'red', 'Gates (-1)', size=3, opacity=0.02, stride=max(1, int(0.05 / resolution)))
         add_trace(1, 'blue', 'Takeoff Pad / Beams (1)', size=1, opacity=0.7)
-        add_trace(-2, 'green', 'Control Points', size=3, opacity=0.7)
+        add_trace(-3, 'pink', 'A* Path (-3)', size=2, opacity=0.7)
+        add_trace(-2, 'green', 'Control Points', size=4, opacity=1)
+
 
         # Add boundary outline
         boundary_x = [1, 9, 9, 1, 1]
@@ -164,3 +173,80 @@ class OccupancyMap:
         )
 
         fig.show()
+
+    def add_new_object(self, type: str, object: List[tuple], grid: np.ndarray = None) -> np.ndarray:
+        """
+        Update grid cells at specified coordinates with a given value.
+
+        Parameters:
+        - type: String ("Free", "Obstacle", "Gate", "Path", or "Control Point")
+        - object: List of (i,j,k) grid coordinate tuples
+        - grid: Optional grid to modify (defaults to self.occupancy_grid)
+
+        Returns:
+        - Modified grid
+
+        Raises:
+        - ValueError: If invalid type or out-of-bounds coordinates
+        """
+        # Type to value mapping
+        type_values = {
+            "Free": 0,
+            "Obstacle": 1,
+            "Gate": -1,
+            "Control Point": -2,
+            "Path": -3,
+            "Flight Area": -4,
+        }
+
+        # Validate type
+        if type not in type_values:
+            raise ValueError(f"Invalid type '{type}'. Must be one of: {list(type_values.keys())}")
+
+        value = type_values[type]
+
+        # Use provided grid or default
+        target_grid = self.occupancy_grid if grid is None else grid
+
+        # Update each coordinate
+        for coord in object:
+            if len(coord) != 3:
+                raise ValueError(f"Coordinate {coord} must be a 3-tuple (i,j,k)")
+
+            i, j, k = coord
+
+            # Bounds checking
+            if not (0 <= i < self.grid_dims[0] and
+                    0 <= j < self.grid_dims[1] and
+                    0 <= k < self.grid_dims[2]):
+                raise ValueError(f"Coordinate {coord} out of grid bounds {self.grid_dims}")
+
+            target_grid[i, j, k] = value
+
+        # Update self reference if using default grid
+        if grid is None:
+            self.occupancy_grid = target_grid
+
+        return target_grid
+
+    def world_to_grid(self, position: List[float]) -> tuple[int, ...]:
+        """Convert continuous world coordinates to discrete grid indices.
+
+        Parameters:
+            - position: List of world coordinates [x, y, z] in meters
+
+        Returns:
+            - List of grid indices (i, j, k)
+        """
+        return tuple(int(round(p / self.resolution)) for p in position)
+
+    def grid_to_world(self, grid_coords: tuple[int, ...]) -> List[float]:
+        """Convert discrete grid indices back to continuous world coordinates.
+
+        Parameters:
+        - grid_coords: Tuple of grid indices (i, j, k)
+
+        Returns:
+        - List of world coordinates [x, y, z] in meters
+        """
+        return [coord * self.resolution for coord in grid_coords]

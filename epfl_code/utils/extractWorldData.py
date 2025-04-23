@@ -10,6 +10,7 @@ class ExtractWorld:
     def __init__(self, path):
         """Initialize with a path to a world file"""
         self.world_file_path = path
+        self.control_points = []
 
     def extract_gate_data(self, content: str) -> List[Dict]:
         """
@@ -320,5 +321,8 @@ class ExtractWorld:
             # Add final point 1 meter above landing pad
             final_point = (landing_pad_pos[0], landing_pad_pos[1], landing_pad_pos[2] + 1.0)
             control_points.append(final_point)
-        
+
+        self.control_points = control_points
+
         return control_points
+
