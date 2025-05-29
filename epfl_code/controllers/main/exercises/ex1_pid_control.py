@@ -45,23 +45,42 @@ class quadrotor_controller():
         else:
             # ### SOLUTION GAINS EXERCISE 1###
             gains = {
-                        "P_pos_z": 5.0,     "I_pos_z": 0.0,     "D_pos_z": 0.8,
-                        "P_pos_xy": 1.5,    "I_pos_xy": 0.0,    "D_pos_xy": 0.0,
-                        "P_vel_z": 7.0,     "I_vel_z": 0.0,     "D_vel_z": 2.0,
-                        "P_vel_xy": 0.5,    "I_vel_xy": 0.0,    "D_vel_xy": 0.015,
-                        "P_att_rp": 10.0,   "I_att_rp": 0.0,    "D_att_rp": 0.2,
-                        "P_att_y": 4.0,     "I_att_y": 0.0,     "D_att_y": 0.3,
-                        "P_rate_rp": 1.5,   "I_rate_rp":0.0,    "D_rate_rp": 0.1,
-                        "P_rate_y": 0.02,   "I_rate_y": 0.0,    "D_rate_y": 0.001
+                        ### TESTING ###
+                        "P_pos_z": 5.0, "I_pos_z": 0.0, "D_pos_z": 2.5,
+                        "P_pos_xy": 1.5, "I_pos_xy": 0.0, "D_pos_xy": 0.0,
+                        "P_vel_z": 7.0, "I_vel_z": 0.1, "D_vel_z": 2.0,
+                        "P_vel_xy": 0.3, "I_vel_xy": 0.0, "D_vel_xy": 0.010,
+                        "P_att_rp": 8.0, "I_att_rp": 0.0, "D_att_rp": 0.9,
+                        "P_att_y": 2.0, "I_att_y": 0.0, "D_att_y": 1.0,
+                        "P_rate_rp": 1.5, "I_rate_rp": 0.0, "D_rate_rp": 0.15,
+                        "P_rate_y": 0.01, "I_rate_y": 0.0, "D_rate_y": 0.002
+
+                        ### ORIGINAL ###
+                        # "P_pos_z": 5.0, "I_pos_z": 0.0, "D_pos_z": 0.8,
+                        # "P_pos_xy": 1.5, "I_pos_xy": 0.0, "D_pos_xy": 0.0,
+                        # "P_vel_z": 7.0, "I_vel_z": 0.0, "D_vel_z": 2.0,
+                        # "P_vel_xy": 0.5, "I_vel_xy": 0.0, "D_vel_xy": 0.015,
+                        # "P_att_rp": 10.0, "I_att_rp": 0.0, "D_att_rp": 0.2,
+                        # "P_att_y": 4.0, "I_att_y": 0.0, "D_att_y": 0.3,
+                        # "P_rate_rp": 1.5, "I_rate_rp": 0.0, "D_rate_rp": 0.1,
+                        # "P_rate_y": 0.02, "I_rate_y": 0.0, "D_rate_y": 0.001
                         }
 
                         
             self.limits = {
-                        "L_rate_rp": 2.0,
-                        "L_rate_y": 3.0,
-                        "L_acc_rp": np.pi/6,
-                        "L_vel_z": 0.75,
-                        "L_vel_xy": 2.0
+                        ### TESTING ###
+                        "L_rate_rp": 4.0,
+                        "L_rate_y": 6.0,
+                        "L_acc_rp": 4,
+                        "L_vel_z": 0.95,
+                        "L_vel_xy": 15.0
+
+                        ### ORIGINAL ###
+                        # "L_rate_rp": 2.0,
+                        # "L_rate_y": 3.0,
+                        # "L_acc_rp": np.pi / 6,
+                        # "L_vel_z": 0.75,
+                        # "L_vel_xy": 2.0
             }
                 
         self.global_time = 0

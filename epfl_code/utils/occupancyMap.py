@@ -82,7 +82,7 @@ class OccupancyMap:
             # Assign voxel values based on object type
             if obj['type'] == 'gate':
                 value = -1
-            elif obj['type'] in ('takeoff_pad', 'beam'):
+            elif obj['type'] in ('takeoff_pad', 'beam', 'obstacle'):
                 value = 1
             else:
                 value = 0
@@ -142,6 +142,7 @@ class OccupancyMap:
         add_trace(-1, 'red', 'Gates (-1)', size=3, opacity=0.02, stride=max(1, int(0.05 / resolution)))
         add_trace(1, 'blue', 'Takeoff Pad / Beams (1)', size=1, opacity=0.7)
         add_trace(-3, 'pink', 'A* Path (-3)', size=2, opacity=0.7)
+        add_trace(-5, 'orange', 'Smoothed Path (-5)', size=3, opacity=0.9)
         add_trace(-2, 'green', 'Control Points', size=4, opacity=1)
 
 
@@ -173,6 +174,7 @@ class OccupancyMap:
         )
 
         fig.show()
+        return fig
 
     def add_new_object(self, type: str, object: List[tuple], grid: np.ndarray = None) -> np.ndarray:
         """
@@ -196,6 +198,7 @@ class OccupancyMap:
             "Gate": -1,
             "Control Point": -2,
             "Path": -3,
+            "Smoothed Path": -5,
             "Flight Area": -4,
         }
 
@@ -229,24 +232,174 @@ class OccupancyMap:
 
         return target_grid
 
-    def world_to_grid(self, position: List[float]) -> tuple[int, ...]:
+    def clear_objects(self, object_type: str, grid: np.ndarray = None) -> np.ndarray:
+        """
+        Clear all cells of a specific object type by setting them to free space (0).
+
+        Parameters:
+        - object_type: String type to clear ("Obstacle", "Gate", "Path", etc.)
+        - grid: Optional grid to modify (defaults to self.occupancy_grid)
+
+        Returns:
+        - Modified grid
+
+        Raises:
+        - ValueError: If invalid object type
+        """
+        # Type to value mapping (must match add_new_object)
+        type_values = {
+            "Free": 0,
+            "Obstacle": 1,
+            "Gate": -1,
+            "Control Point": -2,
+            "Path": -3,
+            "Smoothed Path": -5,
+            "Flight Area": -4,
+        }
+
+        # Validate type
+        if object_type not in type_values:
+            raise ValueError(f"Invalid type '{object_type}'. Must be one of: {list(type_values.keys())}")
+
+        # Get the value we're looking to clear
+        target_value = type_values[object_type]
+
+        # Use provided grid or default
+        target_grid = self.occupancy_grid if grid is None else grid
+
+        # Find and clear all matching cells
+        target_grid[target_grid == target_value] = 0
+
+        # Update self reference if using default grid
+        if grid is None:
+            self.occupancy_grid = target_grid
+
+        return target_grid
+
+
+    def world_to_grid(self, position: List[float] | List[List[float]]) -> tuple[int, ...] | List[tuple[int, ...]]:
         """Convert continuous world coordinates to discrete grid indices.
 
         Parameters:
-            - position: List of world coordinates [x, y, z] in meters
+            position: Either a single point [x, y, z] or a list of points [[x, y, z], ...]
+                 in world coordinates (meters)
 
         Returns:
-            - List of grid indices (i, j, k)
+        - For single point: tuple of grid indices (i, j, k)
+        - For multiple points: list of tuples of grid indices [(i, j, k), ...]
         """
-        return tuple(int(round(p / self.resolution)) for p in position)
+        # Handle single point
+        if not isinstance(position[0], (list, tuple)):
+            return tuple(int(round(p / self.resolution)) for p in position)
+        
+        # Handle list of points
+        return [tuple(int(round(p / self.resolution)) for p in point) for point in position]
 
-    def grid_to_world(self, grid_coords: tuple[int, ...]) -> List[float]:
+    def grid_to_world(self, grid_coords):
         """Convert discrete grid indices back to continuous world coordinates.
 
         Parameters:
-        - grid_coords: Tuple of grid indices (i, j, k)
+            grid_coords: Grid coordinates to convert. Can be a single point or sequence of points.
 
         Returns:
-        - List of world coordinates [x, y, z] in meters
+            - For single point: List of world coordinates [x, y, z] in meters
+            - For multiple points: List of world coordinate points
         """
-        return [coord * self.resolution for coord in grid_coords]
+        # Calculate number of decimal places based on resolution
+        decimal_places = abs(int(np.floor(np.log10(self.resolution))))
+
+        # Handle single point
+        if len(grid_coords) > 0 and not isinstance(grid_coords[0], (tuple, list)):
+            return [round(coord * self.resolution, decimal_places) for coord in grid_coords]
+
+        # Handle sequence of points
+        return [[round(coord * self.resolution, decimal_places) for coord in point] for point in grid_coords]
+
+    def world_to_sim(self, path: list[tuple]) -> list[tuple]:
+        """Convert plotly world coordinates to simulation coordinates.
+
+        Args:
+            path: List of tuples containing (x, y, z) world coordinates
+
+        Returns:
+            List of tuples containing (x, y, z) simulation coordinates
+            with x and y offset by -1, rounded to the same precision as grid_to_world
+        """
+        decimal_places = abs(int(np.floor(np.log10(self.resolution))))
+        return [(round(x - 1, decimal_places), round(y - 1, decimal_places), z) for x, y, z in path]
+
+    def get_triplets(self, control_points, gate_angles, distance, flip_triplets=None):
+        """Create and optionally flip triplets for each control point."""
+        if flip_triplets is None:
+            flip_triplets = [1, 1, 1, 1, 1, 1]  # Default flip pattern
+
+        triplets = []
+        for i, (center, theta) in enumerate(zip(control_points, gate_angles)):
+            x, y, z = center
+            if theta != 0:  # Only create full triplets for gates with angles
+                dx = distance * np.cos(theta)
+                dy = distance * np.sin(theta)
+
+                left = (x + dx, y + dy, z)
+                right = (x - dx, y - dy, z)
+
+                if flip_triplets[i]:
+                    left, right = right, left
+
+                triplets.append([left, center, right])
+            else:
+                triplets.append([center])  # Single point for non-gates
+        return triplets
+
+    def order_control_points(self, control_points, num_loops, gate_angles=None, distance=0.5):
+        """Order control points while maintaining triplet grouping."""
+        if len(control_points) != 6:
+            print(f"Warning: Expected 6 control points, got {len(control_points)}")
+            return control_points
+
+        gate_order = [5, 0, 1, 2, 3, 4]  # Special gate ordering
+
+        # Create triplets with flipping
+        triplets = self.get_triplets(
+            control_points,
+            gate_angles or [0] * 6,
+            distance
+        )
+
+        # Reorder and print verification
+        # print("\nGate Processing Order:")
+        ordered_triplets = []
+
+        for new_pos, orig_idx in enumerate(gate_order):
+            triplet = triplets[orig_idx]
+            ordered_triplets.append(triplet)
+
+            # # Print verification
+            # print(f"\nGate {orig_idx} -> Position {new_pos}:")
+            # for i, point in enumerate(triplet):
+            #     label = ["Left", "Center", "Right"][i] if len(triplet) == 3 else "Single"
+            #     print(f"{label}: ({point[0]:.2f}, {point[1]:.2f}, {point[2]:.2f})")
+
+        # Add to occupancy grid
+        for triplet in ordered_triplets:
+            for point in triplet:
+                try:
+                    self.add_new_object("Control Point", [self.world_to_grid(point)])
+                except ValueError as e:
+                    print(f"Warning: Couldn't add point {point}: {e}")
+
+        # Flatten and handle looping
+        ordered_points = [p for triplet in ordered_triplets for p in triplet]
+
+        if num_loops == 1:
+            print("Length of Control Points", len(ordered_points))
+            return ordered_points[1:] + [ordered_points[0]]
+        elif num_loops == 2:
+            return ordered_points[1:] + [ordered_points[0]] + ordered_points[1:] + [ordered_points[0]]
+        else:
+            result = ordered_points[1:] + ordered_points
+            for _ in range(num_loops - 2):
+                result += ordered_points
+            return result
+
+

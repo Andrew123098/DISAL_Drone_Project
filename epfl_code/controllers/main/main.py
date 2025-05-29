@@ -664,6 +664,7 @@ def path_planner_thread(drone):
     
 
 if __name__ == '__main__':
+    print("Starting Drone in Webots...")
 
     # Initialize the drone
     drone = CrazyflieInDroneDome()

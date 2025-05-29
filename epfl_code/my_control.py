@@ -44,6 +44,7 @@ pos, coords = list_of_coords(max_val)
 
 # This is the main function where you will implement your control algorithm
 def get_command(sensor_data, camera_data, dt):
+    print("Getting Command...")
     global on_ground, startpos, start_time, max_val, pos, coords, visitedNodes, t, mode, path
 
     # Open a window to display the camera image

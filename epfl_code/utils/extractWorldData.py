@@ -1,7 +1,7 @@
 import re
 import numpy as np
 from scipy.spatial.transform import Rotation
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 
 class ExtractWorld:
@@ -135,6 +135,66 @@ class ExtractWorld:
 
         return beams
 
+    import re
+
+    import re
+
+    import re
+
+    def extract_obstacles(self, world_text):
+        obstacle_pattern = re.compile(
+            r'DEF\s+(OBSTACLE_\d+)\s+Solid\s*{(.*?)}',
+            re.DOTALL
+        )
+        translation_pattern = re.compile(
+            r'translation\s+([-\d.eE]+)\s+([-\d.eE]+)\s+([-\d.eE]+)'
+        )
+        rotation_pattern = re.compile(
+            r'rotation\s+([-\d.eE]+)\s+([-\d.eE]+)\s+([-\d.eE]+)\s+([-\d.eE]+)'
+        )
+        # This pattern will match: # size x y z (with any whitespace before/after)
+        size_comment_pattern = re.compile(
+            r'#\s*size\s+([-\d.eE]+)\s+([-\d.eE]+)\s+([-\d.eE]+)'
+        )
+
+        obstacles = []
+        for match in obstacle_pattern.finditer(world_text):
+            name = match.group(1)
+            body = match.group(2)
+
+            print(f"\n--- Processing Obstacle: {name} ---")
+            print("[DEBUG] Obstacle body:\n", body[:200])  # preview body for debugging
+
+            translation_match = translation_pattern.search(body)
+            rotation_match = rotation_pattern.search(body)
+            size_comment_match = size_comment_pattern.search(body)
+
+            print("[DEBUG] Translation match:", translation_match.group(0) if translation_match else "None")
+            print("[DEBUG] Rotation match:", rotation_match.group(0) if rotation_match else "None")
+            print("[DEBUG] Size comment match:", size_comment_match.group(0) if size_comment_match else "None")
+
+            translation = tuple(map(float, translation_match.groups())) if translation_match else None
+            rotation = tuple(map(float, rotation_match.groups())) if rotation_match else None
+            scale = tuple(map(float, size_comment_match.groups())) if size_comment_match else None
+
+            obstacles.append({
+                'type': 'obstacle',
+                'name': name,
+                'translation': translation,
+                'rotation': rotation,
+                'scale': scale
+            })
+
+        print("\n[RESULT] Total Obstacles Extracted:", len(obstacles))
+        for obstacle in obstacles:
+            print(f"Obstacle Name: {obstacle['name']}")
+            print(f"Translation: {obstacle['translation']}")
+            print(f"Rotation: {obstacle['rotation']}")
+            print(f"Scale: {obstacle['scale']}")
+            print("----------------------------------------")
+
+        return obstacles
+
     def extract_object_data(self) -> List[Dict]:
         """
         Main extraction function for gates and takeoff pads
@@ -146,8 +206,10 @@ class ExtractWorld:
         gate_data = self.extract_gate_data(content)
         takeoff_pad_data = self.extract_takeoff_pad(content)
         # beams_data = self.extract_beams(content)  # Uncomment when needed
+        obstacles_data = self.extract_obstacles(content)
+        print(f"Total Obstacles Extracted: {len(obstacles_data)}")
 
-        return gate_data + takeoff_pad_data
+        return gate_data + takeoff_pad_data + obstacles_data
 
     def transform_coordinates(self, objects: List[Dict]) -> List[Dict]:
         """
@@ -197,7 +259,7 @@ class ExtractWorld:
         new_z = z
 
         # Special handling for gates
-        if obj['type'] == 'gate':
+        if obj['type'] == 'gate' or obj['type'] == 'obstacle':
             new_rotation = [0, 0, 1, angle]  # Simplified rotation
         else:
             # Leave the rotation unchanged for beams and other objects
@@ -289,40 +351,83 @@ class ExtractWorld:
         return world_pos, full_rotation
 
 
-    def get_control_points(self, objects: List[Dict]) -> List[tuple]:
+    # def get_control_points(self, objects: List[Dict]) -> List[tuple]:
+    #     """
+    #     Creates a list of control points from gate positions and landing pad.
+    #
+    #     Args:
+    #         objects: List of dictionaries containing object data with translations and types
+    #
+    #     Returns:
+    #         List of (x, y, z) tuples representing control points for the path
+    #     """
+    #     control_points = []
+    #     landing_pad_pos = None
+    #
+    #     # Sort gates by name to ensure consistent ordering
+    #     gates = [obj for obj in objects if obj['type'] == 'gate']
+    #     gates.sort(key=lambda x: x['name'])
+    #
+    #     # Add gate positions as control points
+    #     for gate in gates:
+    #         pos = gate['translation']
+    #         control_points.append(tuple(pos))
+    #
+    #     # Find landing pad position
+    #     for obj in objects:
+    #         if obj['type'] == 'takeoff_pad':
+    #             landing_pad_pos = obj['translation']
+    #             break
+    #
+    #     if landing_pad_pos:
+    #         # Add final point 1 meter above landing pad
+    #         final_point = (landing_pad_pos[0], landing_pad_pos[1], landing_pad_pos[2] + 1.0)
+    #         control_points.append(final_point)
+    #
+    #     self.control_points = control_points
+    #
+    #     return control_points
+
+    def get_control_points(self, objects: List[Dict]) -> Tuple[List[tuple], List[float]]:
         """
         Creates a list of control points from gate positions and landing pad.
-        
+
         Args:
             objects: List of dictionaries containing object data with translations and types
-            
+
         Returns:
-            List of (x, y, z) tuples representing control points for the path
+        tuple:
+            - List[tuple]: List of (x, y, z) tuples representing control points for the path
+            - List[float]: List of rotation angles (theta) for each control point
         """
         control_points = []
+        thetas = []
         landing_pad_pos = None
-        
+
         # Sort gates by name to ensure consistent ordering
         gates = [obj for obj in objects if obj['type'] == 'gate']
         gates.sort(key=lambda x: x['name'])
-        
+
         # Add gate positions as control points
         for gate in gates:
             pos = gate['translation']
-            control_points.append(tuple(pos))
-        
+            theta = gate['rotation'][3]  # Extract rotation angle
+            control_points.append((pos[0], pos[1], pos[2]))
+            thetas.append(theta)
+
         # Find landing pad position
         for obj in objects:
             if obj['type'] == 'takeoff_pad':
                 landing_pad_pos = obj['translation']
                 break
-        
+
         if landing_pad_pos:
-            # Add final point 1 meter above landing pad
+            # Add final point 1 meter above landing pad (theta=0 for landing pad)
             final_point = (landing_pad_pos[0], landing_pad_pos[1], landing_pad_pos[2] + 1.0)
             control_points.append(final_point)
+            thetas.append(0)
 
         self.control_points = control_points
 
-        return control_points
+        return control_points, thetas
 
