@@ -85,6 +85,30 @@ plotly~=6.0.1
    - Maximum snap, jerk, acceleration, and velocity
    - Path smoothness
 
+## Example Hyperparameters
+
+### Table: Hyperparameters for Path Generation (With vs. Without Obstacles)
+
+| **Variable**                    | **No Obstacles** | **With Obstacles** |
+|----------------------------------|------------------|---------------------|
+| Resolution                       | 0.05 meters      | 0.05 meters         |
+| A-star Safety Margin             | 2 Voxels         | 2 Voxels            |
+| Elastic Band Tension             | 0.8              | 0.6                 |
+| Elastic Band Repulsion           | 2                | 3                   |
+| Elastic Band Damping             | 0.12             | 0.08                |
+| Elastic Band Neighborhood        | 4 Voxels         | 4 Voxels            |
+| Elastic Band Iterations          | 200              | 200                 |
+| B-spline Degree                  | 3 and 4          | 3 and 4             |
+| B-spline Downsample              | 1                | 30                  |
+| B-spline Boundary Constraints    | "Not-a-Knot"     | "Not-a-Knot"        |
+
+## Pipeline Without Obstacles
+![Pipeline](epfl_code/images/PiplineNoObstacles.png)
+
+## Pipeline With Obstacles
+![Pipeline](epfl_code/images/PipelineObstacles.png)
+
+
 ## Documentation
 For detailed information about using the simulator and understanding the implementation, visit:
 https://micro-502.readthedocs.io
