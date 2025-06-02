@@ -14,56 +14,48 @@ class BSplineSmoother:
 
     def _prepare_points(self, astar_path: List[Tuple[float, float, float]],
                         control_points: List[Tuple[float, float, float]]) -> np.ndarray:
-        """Combine points with proximity filtering while preserving loop structure"""
-        astar = np.array(astar_path)
-        controls = np.array(control_points)
+        """
+        Downsample the A* path by keeping every N-th point.
+        Always keeps the first and last points.
+        """
+        # Convert to numpy array for easier manipulation
+        path = np.array(astar_path)
 
-        # Combine all points while maintaining original order
-        all_points = np.vstack([astar, controls])
-        original_indices = np.arange(len(all_points))
+        # If path is too short, return as is
+        if len(path) <= self.degree + 1:
+            return path
 
-        # Create list of (point, original_index) tuples
-        indexed_points = [(pt, idx) for idx, pt in enumerate(all_points)]
+        # Create mask for points to keep
+        num_points = len(path)
+        keep_mask = np.zeros(num_points, dtype=bool)
 
         # Always keep first and last points
-        keep_mask = np.zeros(len(all_points), dtype=bool)
         keep_mask[0] = True
         keep_mask[-1] = True
 
-        # Build KDTree for spatial queries
-        if len(all_points) > 1:
-            points_array = np.array([pt for pt, idx in indexed_points])
-            tree = KDTree(points_array)
+        # Keep every N-th point based on downsample_factor
+        step = max(1, int(self.downsample_factor))
+        keep_mask[1:-1:step] = True
 
-            for i, (pt, current_idx) in enumerate(indexed_points):
-                if not keep_mask[i]:  # Only process points not already marked to keep
-                    neighbors = tree.query_ball_point(pt, r=self.min_dist)
+        # Get the downsampled path
+        downsampled_path = path[keep_mask]
 
-                    # Filter neighbors based on index proximity
-                    close_neighbors = [
-                        n for n in neighbors
-                        if abs(original_indices[n] - current_idx) <= 4
-                    ]
+        # Ensure we have enough points for the spline degree
+        while len(downsampled_path) < self.degree + 1:
+            # Find longest segment and add a point in the middle
+            segments = np.diff(downsampled_path, axis=0)
+            segment_lengths = np.linalg.norm(segments, axis=1)
+            longest_segment_idx = np.argmax(segment_lengths)
 
-                    # If no close neighbors (within 4 indices), keep this point
-                    if not close_neighbors:
-                        keep_mask[i] = True
-                    else:
-                        # Only keep this point if it's the first in the close group
-                        if i == min(close_neighbors):
-                            keep_mask[i] = True
+            # Insert middle point of longest segment
+            mid_point = (downsampled_path[longest_segment_idx] +
+                         downsampled_path[longest_segment_idx + 1]) / 2
+            downsampled_path = np.insert(downsampled_path,
+                                         longest_segment_idx + 1,
+                                         mid_point,
+                                         axis=0)
 
-        filtered_points = all_points[keep_mask]
-
-        # Final check to ensure we have enough points for the spline degree
-        if len(filtered_points) < self.degree + 1:
-            # Fallback: keep more points to satisfy spline requirements
-            additional_needed = (self.degree + 1) - len(filtered_points)
-            unfiltered_indices = np.where(~keep_mask)[0]
-            keep_mask[unfiltered_indices[:additional_needed]] = True
-            filtered_points = all_points[keep_mask]
-
-        return filtered_points
+        return downsampled_path
 
     def smooth(self, astar_path: List[Tuple[float, float, float]],
                control_points: List[Tuple[float, float, float]]) -> List[Tuple[float, float, float]]:

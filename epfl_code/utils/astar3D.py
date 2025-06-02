@@ -5,7 +5,7 @@ from scipy.ndimage import binary_dilation
 
 
 class AStar3D:
-    def __init__(self, grid: np.ndarray, move_type: str = '6d', safety_margin: int = 0):
+    def __init__(self, grid: np.ndarray, move_type: str = '26d', safety_margin: int = 1):
         """
         Initialize the 3D A* algorithm with grid and movement type.
 

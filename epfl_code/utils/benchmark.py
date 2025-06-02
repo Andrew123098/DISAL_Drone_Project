@@ -1,5 +1,4 @@
 import numpy as np
-from scipy import interpolate, signal
 from typing import List, Tuple
 import matplotlib.pyplot as plt
 

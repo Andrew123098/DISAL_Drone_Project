@@ -339,3 +339,97 @@ DEF GATE4 RacingGate {
   leftLegTranslation 0 0.18713959399684904 -1.0241489379968407
   rightLegTranslation 0 -0.18713959399684904 -1.0241489379968407
 }
+
+
+
+# Obstacle between GATE1 and GATE2
+DEF OBSTACLE_12 Solid {
+  translation 6.0 2.8 1.5  # Midpoint between GATE1 and GATE2
+  rotation 0 0 1 0.0
+  # size 0.8 0.8 3.0
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColorMap ImageTexture {
+          url ["./textures_epfl_lis/obstacle_box.jpg"]
+        }
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 0.8 0.8 3.0  # Tall, square obstacle
+      }
+    }
+  ]
+  name "obstacle_12"
+  boundingObject Box { size 0.8 0.8 3.0 }
+}
+
+# Obstacle between GATE2 and GATE3
+DEF OBSTACLE_23 Solid {
+  translation 6.5 5.0 1.2  # Midpoint between GATE2 and GATE3
+  rotation 0 0 1 -0.8  # Angled obstacle
+  # size 2.0 0.3 2.4
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColorMap ImageTexture {
+          url ["./textures_epfl_lis/obstacle_box.jpg"]
+        }
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 2.0 0.3 2.4  # Long, thin, medium height
+      }
+    }
+  ]
+  name "obstacle_23"
+  boundingObject Box { size 2.0 0.3 2.4 }
+}
+
+# Obstacle between GATE3 and GATE4
+DEF OBSTACLE_34 Solid {
+  translation 4.0 6.0 1.1  # Midpoint between GATE3 and GATE4
+  rotation 0 0 1 -0.8
+  # size 1.2 1.2 2.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColorMap ImageTexture {
+          url ["./textures_epfl_lis/obstacle_box.jpg"]
+        }
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 1.2 1.2 2.2  # Cube-like obstacle
+      }
+    }
+  ]
+  name "obstacle_34"
+  boundingObject Box { size 1.2 1.2 2.2 }
+}
+
+# Obstacle between GATE4 and GATE0 (completing the loop)
+DEF OBSTACLE_10 Solid {
+  translation 3.3 2.5 1.2  # Midpoint between GATE1 and GATE0
+  rotation 0 0 1 -0.3  # Slightly rotated
+  # size 0.5 1.8 2.0
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColorMap ImageTexture {
+          url ["./textures_epfl_lis/obstacle_box.jpg"]
+        }
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 0.5 1.8 2.0  # Narrow but wide obstacle
+      }
+    }
+  ]
+  name "obstacle_40"
+  boundingObject Box { size 0.5 1.8 2.0 }
+}
